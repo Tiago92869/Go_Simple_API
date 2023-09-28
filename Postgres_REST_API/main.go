@@ -5,8 +5,10 @@ package main
 import (
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -21,6 +23,13 @@ const (
 	password = "postgres"
 	dbname   = "bookstore"
 )
+
+type Book struct {
+	ID       string `json:id`
+	Title    string `json:title`
+	Author   string `json:author`
+	Quantity int    `json:quantity`
+}
 
 var db *sql.DB
 
@@ -72,6 +81,48 @@ func executeSQLFile(db *sql.DB, filename string) error {
 	return scanner.Err()
 }
 
+func getAllbooks(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := db.Query("SELECT * FROM books")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Create a slice to store the results
+	books := []Book{} // Assuming you have a Book struct defined
+
+	// Iterate over the rows and scan the data into the struct
+	for rows.Next() {
+		var book Book // Assuming you have a Book struct defined with the necessary fields
+		err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.Quantity)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		books = append(books, book)
+	}
+
+	// Marshal the books slice to JSON
+	jsonData, err := json.Marshal(books)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set the response header to indicate JSON content
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the JSON response to the client
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+
+}
+
 func main() {
-	fmt.Println("Hello World")
+
+	http.HandleFunc("/books", getAllbooks)
+	fmt.Println("Server is running on :8080...")
+	log.Fatal(http.ListenAndServe(":8889", nil))
 }

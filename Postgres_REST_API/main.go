@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	_ "github.com/lib/pq"
@@ -117,12 +118,47 @@ func getAllbooks(w http.ResponseWriter, r *http.Request) {
 	// Write the JSON response to the client
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
+}
 
+func getBookById(w http.ResponseWriter, r *http.Request) {
+
+	idStr := r.URL.Path[len("/books/"):]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid book Id", http.StatusBadRequest)
+		return
+	}
+
+	var book Book
+	err = db.QueryRow("SELECT * FROM books WHERE id = $1", id).
+		Scan(&book.ID, &book.Title, &book.Author, &book.Quantity)
+	if err == sql.ErrNoRows {
+		http.Error(w, "Book not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Marshal the book struct into JSON
+	jsonData, err := json.Marshal(book)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set the response header to indicate JSON content
+	w.Header().Set("Content-Type", "application/json")
+
+	// Write the JSON response to the client
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
 }
 
 func main() {
 
 	http.HandleFunc("/books", getAllbooks)
+	http.HandleFunc("/books/", getBookById)
 	fmt.Println("Server is running on :8080...")
 	log.Fatal(http.ListenAndServe(":8889", nil))
 }

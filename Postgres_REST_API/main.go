@@ -200,6 +200,45 @@ func createBook(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+func updateBookById(w http.ResponseWriter, r *http.Request) {
+
+	// Extract book ID from the URL
+	vars := mux.Vars(r)
+	bookIDStr := vars["id"]
+
+	// Parse JSON data from the request body into a Book struct
+	var updatedBook Book
+	if err := json.NewDecoder(r.Body).Decode(&updatedBook); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Update the book in the database
+	updateSQL := `UPDATE books SET title=$1, author=$2, quantity=$3 WHERE id=$4`
+	_, err := db.Exec(updateSQL, updatedBook.Title, updatedBook.Author, updatedBook.Quantity, bookIDStr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return the updated book as the response
+	updatedBook.ID = bookIDStr
+
+	// Marshal the updatedBook struct into JSON
+	jsonData, err := json.Marshal(updatedBook)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set the response header to indicate JSON content
+	w.Header().Set("Content-Type", "application/json")
+
+	// Set the status code to indicate success (200 OK)
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
+
 func main() {
 
 	router := mux.NewRouter()
@@ -207,6 +246,7 @@ func main() {
 	router.HandleFunc("/books", getAllbooks).Methods(http.MethodGet)
 	router.HandleFunc("/books/{id:[0-9]+}", getBookById).Methods(http.MethodGet)
 	router.HandleFunc("/books", createBook).Methods(http.MethodPost)
+	router.HandleFunc("/books/{id:[0-9]+}", updateBookById).Methods(http.MethodPatch)
 	fmt.Println("Server is running on :8889...")
 	log.Fatal(http.ListenAndServe(":8889", router))
 }

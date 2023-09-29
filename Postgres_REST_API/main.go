@@ -239,6 +239,29 @@ func updateBookById(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	// Extract book ID from the URL
+	vars := mux.Vars(r)
+	bookIDStr := vars["id"]
+	bookID, err := strconv.Atoi(bookIDStr)
+	if err != nil {
+		http.Error(w, "Invalid book ID", http.StatusBadRequest)
+		return
+	}
+
+	// Delete the book from the database
+	deleteSQL := `DELETE FROM books WHERE id=$1`
+	_, err = db.Exec(deleteSQL, bookID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent) // StatusNoContent indicates successful deletion with no response body
+}
+
 func main() {
 
 	router := mux.NewRouter()
@@ -247,6 +270,7 @@ func main() {
 	router.HandleFunc("/books/{id:[0-9]+}", getBookById).Methods(http.MethodGet)
 	router.HandleFunc("/books", createBook).Methods(http.MethodPost)
 	router.HandleFunc("/books/{id:[0-9]+}", updateBookById).Methods(http.MethodPatch)
+	router.HandleFunc("/books/{id:[0-9]+}", deleteBook).Methods(http.MethodDelete)
 	fmt.Println("Server is running on :8889...")
 	log.Fatal(http.ListenAndServe(":8889", router))
 }

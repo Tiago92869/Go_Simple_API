@@ -1,6 +1,6 @@
 package main
 
-//dowload postgres dependencies: go get github.com/lib/pq
+//dowload postgres dependencies: go get github.com/lib/pq and go get github.com/gorilla/mux
 
 import (
 	"bufio"
@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 )
 
@@ -122,8 +123,9 @@ func getAllbooks(w http.ResponseWriter, r *http.Request) {
 
 func getBookById(w http.ResponseWriter, r *http.Request) {
 
-	idStr := r.URL.Path[len("/books/"):]
-	id, err := strconv.Atoi(idStr)
+	vars := mux.Vars(r)
+	bookIDStr := vars["id"]
+	id, err := strconv.Atoi(bookIDStr)
 	if err != nil {
 		http.Error(w, "Invalid book Id", http.StatusBadRequest)
 		return
@@ -155,10 +157,56 @@ func getBookById(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonData)
 }
 
+func createBook(w http.ResponseWriter, r *http.Request) {
+
+	//Parse JSON data from the request body into a Book struct
+	var book Book
+	if err := json.NewDecoder(r.Body).Decode(&book); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	//Insert the new data in the database
+	insertSQL := `INSERT INTO books (id, title, author, quantity) VALUES ($1, $2, $3, $4) RETURNING ID`
+
+	var bookId int
+	err := db.QueryRow(insertSQL, book.ID, book.Title, book.Author, book.Quantity).Scan(&bookId)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Retrieve the newly created book from the database based on the generated book ID
+	var createdBook Book
+	query := "SELECT id, title, author, quantity FROM books WHERE id = $1"
+	err = db.QueryRow(query, bookId).Scan(&createdBook.ID, &createdBook.Title, &createdBook.Author, &createdBook.Quantity)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Marshal the createdBook struct into JSON
+	jsonData, err := json.Marshal(createdBook)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Set the response header to indicate JSON content
+	w.Header().Set("Content-Type", "application/json")
+
+	// Set the status code to indicate success (201 Created)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+}
+
 func main() {
 
-	http.HandleFunc("/books", getAllbooks)
-	http.HandleFunc("/books/", getBookById)
-	fmt.Println("Server is running on :8080...")
-	log.Fatal(http.ListenAndServe(":8889", nil))
+	router := mux.NewRouter()
+
+	router.HandleFunc("/books", getAllbooks).Methods(http.MethodGet)
+	router.HandleFunc("/books/{id:[0-9]+}", getBookById).Methods(http.MethodGet)
+	router.HandleFunc("/books", createBook).Methods(http.MethodPost)
+	fmt.Println("Server is running on :8889...")
+	log.Fatal(http.ListenAndServe(":8889", router))
 }

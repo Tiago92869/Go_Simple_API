@@ -109,12 +109,41 @@ func getBookById(c *gin.Context) {
 	c.JSON(http.StatusOK, book)
 }
 
+func createBook(c *gin.Context) {
+
+	var newBook Book
+	if err := c.BindJSON(&newBook); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	// connect to mongodb
+	client, err := getSession()
+	if err != nil {
+		log.Fatal("Error connection to MongoDB: ", err)
+		return
+	}
+
+	defer client.Disconnect(context.TODO())
+
+	collection := client.Database("godb").Collection("books")
+
+	_, err = collection.InsertOne(context.TODO(), newBook)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not save new book"})
+		return
+	}
+
+	c.JSON(http.StatusOK, newBook)
+}
+
 func main() {
 
 	router := gin.Default()
 
 	router.GET("/books", getAllBooks)
 	router.GET("/books/:id", getBookById)
+	router.POST("/books", createBook)
 
 	router.Run("localhost:8885")
 

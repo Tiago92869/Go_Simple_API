@@ -137,6 +137,52 @@ func createBook(c *gin.Context) {
 	c.JSON(http.StatusOK, newBook)
 }
 
+func updateBook(c *gin.Context) {
+
+	bookId := c.Param("id")
+
+	objectId, err := primitive.ObjectIDFromHex(bookId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid book ID"})
+		return
+	}
+
+	var newBook Book
+	if err := c.BindJSON(&newBook); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	// connect to mongodb
+	client, err := getSession()
+	if err != nil {
+		log.Fatal("Error connection to MongoDB: ", err)
+		return
+	}
+
+	defer client.Disconnect(context.TODO())
+
+	collection := client.Database("godb").Collection("books")
+
+	filter := bson.M{"_id": objectId}
+
+	update := bson.M{
+		"$set": bson.M{
+			"title":    newBook.Title,
+			"author":   newBook.Author,
+			"quantity": newBook.Quantity,
+		},
+	}
+
+	_, err = collection.UpdateOne(context.TODO(), filter, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating book in mongodb"})
+		return
+	}
+
+	c.JSON(http.StatusOK, update)
+}
+
 func main() {
 
 	router := gin.Default()
@@ -144,6 +190,7 @@ func main() {
 	router.GET("/books", getAllBooks)
 	router.GET("/books/:id", getBookById)
 	router.POST("/books", createBook)
+	router.PATCH("/books/:id", updateBook)
 
 	router.Run("localhost:8885")
 

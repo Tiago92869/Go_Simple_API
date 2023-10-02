@@ -1,0 +1,13 @@
+version: '3'
+services:
+  mongodb:
+    image: mongo
+    container_name: mongodb-container
+    ports:
+      - "27016:27017"
+    volumes:
+      - /path/to/your/mongod.conf:/etc/mongod.conf # Optional: Mount your custom mongod.conf file
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo   # Optional: Set root username
+      MONGO_INITDB_ROOT_PASSWORD: mongo   # Optional: Set root password
+    restart: always

@@ -183,6 +183,39 @@ func updateBook(c *gin.Context) {
 	c.JSON(http.StatusOK, update)
 }
 
+func deleteBook(c *gin.Context) {
+
+	bookId := c.Param("id")
+
+	objectId, err := primitive.ObjectIDFromHex(bookId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid book ID"})
+		return
+	}
+
+	// connect to mongodb
+	client, err := getSession()
+	if err != nil {
+		log.Fatal("Error connection to MongoDB: ", err)
+		return
+	}
+
+	defer client.Disconnect(context.TODO())
+
+	collection := client.Database("godb").Collection("books")
+
+	// Create a filter based on the book ID
+	book := bson.M{"_id": objectId}
+
+	_, err = collection.DeleteOne(context.TODO(), book)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not delete book"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Book deleted with success"})
+}
+
 func main() {
 
 	router := gin.Default()
@@ -191,6 +224,7 @@ func main() {
 	router.GET("/books/:id", getBookById)
 	router.POST("/books", createBook)
 	router.PATCH("/books/:id", updateBook)
+	router.DELETE("/books/:id", deleteBook)
 
 	router.Run("localhost:8885")
 

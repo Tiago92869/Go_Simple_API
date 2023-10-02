@@ -2,8 +2,12 @@ package main
 
 import (
 	"context"
+	"log"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gopkg.in/mgo.v2/bson"
+
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -40,9 +44,45 @@ func getSession() (*mongo.Client, error) {
 	return client, nil
 }
 
+func getAllBooks(c *gin.Context) {
+
+	// connect to mongodb
+	client, err := getSession()
+	if err != nil {
+		log.Fatal("Error connection to MongoDB: ", err)
+		return
+	}
+
+	defer client.Disconnect(context.TODO())
+
+	collection := client.Database("godb").Collection("books")
+
+	booksMongo, err := collection.Find(context.TODO(), bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch books"})
+		return
+	}
+
+	defer booksMongo.Close(context.TODO())
+
+	var books []Book
+	for booksMongo.Next(context.TODO()) {
+		var book Book
+		if err := booksMongo.Decode(&book); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode book data"})
+		}
+
+		books = append(books, book)
+	}
+
+	c.JSON(http.StatusOK, books)
+}
+
 func main() {
 
 	router := gin.Default()
+
+	router.GET("/books", getAllBooks)
 
 	router.Run("localhost:8885")
 

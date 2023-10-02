@@ -78,11 +78,43 @@ func getAllBooks(c *gin.Context) {
 	c.JSON(http.StatusOK, books)
 }
 
+func getBookById(c *gin.Context) {
+
+	bookId := c.Param("id")
+
+	objectId, err := primitive.ObjectIDFromHex(bookId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid book ID"})
+		return
+	}
+
+	// connect to mongodb
+	client, err := getSession()
+	if err != nil {
+		log.Fatal("Error connection to MongoDB: ", err)
+		return
+	}
+
+	defer client.Disconnect(context.TODO())
+
+	collection := client.Database("godb").Collection("books")
+
+	var book Book
+	err = collection.FindOne(context.TODO(), bson.M{"_id": objectId}).Decode(&book)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Book not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, book)
+}
+
 func main() {
 
 	router := gin.Default()
 
 	router.GET("/books", getAllBooks)
+	router.GET("/books/:id", getBookById)
 
 	router.Run("localhost:8885")
 
